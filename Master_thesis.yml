@@ -1,0 +1,10 @@
+channels:
+- conda-forge
+- bioconda
+dependencies:
+# Make sure to update the r-essentials version number to the latest version at the start of the project
+- r-essentials=4.2
+- bioconductor-biocinstaller
+- perl-env
+- bioconductor-ensdb.hsapiens.v86
+- nextflow
