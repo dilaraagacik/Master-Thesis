@@ -246,7 +246,7 @@ process SplitPeptides {
 }
 
 process FilterPrecomputedAllelesFromRDS_MHC1 {
-    publishDir "results/combined_mhc1", mode: 'copy'
+
     input:
     path allele_file
     path rds_file
@@ -257,17 +257,21 @@ process FilterPrecomputedAllelesFromRDS_MHC1 {
     script:
     """
     Rscript -e '
-    alleles <- readLines("${allele_file}")
-    rds_data <- readRDS("${rds_file}")
-    existing <- colnames(rds_data)
-    missing <- setdiff(alleles, existing)
-    writeLines(missing, "mhc1_alleles_filtered.txt")
+      alleles <- readLines("${allele_file}")
+      rds_data <- readRDS("${rds_file}")
+      existing <- colnames(rds_data)
+      missing <- setdiff(alleles, existing)
+
+      if (length(missing) == 0) {
+        writeLines("HLA-DONE", "mhc1_alleles_filtered.txt")
+      } else {
+        writeLines(missing, "mhc1_alleles_filtered.txt")
+      }
     '
     """
 }
-
 process FilterPrecomputedAllelesFromRDS_MHC2 {
-    publishDir "results/combined_mhc2", mode: 'copy'
+
     input:
     path allele_file
     path rds_file
@@ -278,260 +282,182 @@ process FilterPrecomputedAllelesFromRDS_MHC2 {
     script:
     """
     Rscript -e '
-    alleles <- readLines("${allele_file}")
-    rds_data <- readRDS("${rds_file}")
-    existing <- colnames(rds_data)
-    missing <- setdiff(alleles, existing)
-    writeLines(missing, "mhc2_alleles_filtered.txt")
+      alleles <- readLines("${allele_file}")
+      rds_data <- readRDS("${rds_file}")
+      existing <- colnames(rds_data)
+      missing <- setdiff(alleles, existing)
+
+      if (length(missing) == 0) {
+        writeLines("HLA-DONE", "mhc2_alleles_filtered.txt")
+      } else {
+        writeLines(missing, "mhc2_alleles_filtered.txt")
+      }
     '
     """
 }
 
 
-process RunNetMHCpan {
-    tag "NetMHCpan - ${sample_id}"
-    errorStrategy 'ignore'
+
+
+process NetMHCpan {
+    tag "NetMHCpan - ${allele}"
+    publishDir "results/mhc1_xls", pattern: "mhc1_*.xls", mode: 'move'
 
 
     input:
-    tuple val(sample_id), path(mhc1_alleles), path(mhc1_chunks)
+    tuple val(allele), path(chunk_dir)
 
     output:
-    path "mhc1_*.xls", emit: mhc1_results
+    path "mhc1_${allele}.xls", optional: true, emit: mhc1_result
 
     script:
     """
-    echo "Running NetMHCpan for sample: ${sample_id}"
-    for chunk in ${mhc1_chunks}/*; do
-      chunk_name=\$(basename "\$chunk")
+    set +e
+    echo "▶️ Running NetMHCpan for allele: ${allele}"
+    out_file="mhc1_${allele}.xls"
+    found_any=0
 
-      grep -v '^\\s*\$' "${mhc1_alleles}" | xargs -I{} -P 7 bash -c '
-        allele="{}"
-        chunk="\$0"
-        chunk_name="\$1"
-        sample_id="\$2"
-        output="mhc1_\${allele}_\${chunk_name}.xls"
+    echo "📁 Using chunk directory: ${chunk_dir}"
+    ls -lh "${chunk_dir}"
 
-        if [ ! -s "\$output" ]; then
-          tcsh ${params.tool_mhc1} -a "\${allele}" -f "\${chunk}" -inptype 0 -l 9 -BA -xls -xlsfile "\${output}" > /dev/null 2>> error.log
+    for chunk in "${chunk_dir}"/mhc1_part_*; do
+        if [ ! -f "\$chunk" ]; then
+            echo "⚠️ Skipping non-existent or non-regular file: \$chunk"
+            continue
         fi
-      ' "\$chunk" "\$chunk_name" "${sample_id}"
-    done
 
-    echo "Finished NetMHCpan for sample: ${sample_id}"
-    """
-}
-
-
-
-process RunNetMHCIIpan {
-    errorStrategy 'ignore'
-
-    tag "NetMHCIIpan - ${sample_id}"
-
-    input:
-    tuple val(sample_id), path(mhc2_alleles), path(mhc2_chunks)
-
-    output:
-    path "mhc2_*.xls", emit: mhc2_results
-
-    script:
-    """
-    echo "Running NetMHCIIpan for sample: ${sample_id}"
-    for chunk in ${mhc2_chunks}/*; do
-      chunk_name=\$(basename "\$chunk")
-
-      grep -v '^\\s*\$' "${mhc2_alleles}" | xargs -I{} -P 7 bash -c '
-        allele="{}"
-        chunk="\$0"
-        chunk_name="\$1"
-        sample_id="\$2"
-        output="mhc2_\${allele}_\${chunk_name}.xls"
-
-        if [ ! -s "\$output" ]; then
-
-          tcsh ${params.tool_mhc2} -a "\${allele}" -f "\${chunk}" -inptype 0 -length 15 -xls -xlsfile "\${output}" > /dev/null 2>> error.log
-        fi
-      ' "\$chunk" "\$chunk_name" "${sample_id}"
-    done
-
-    echo "Finished NetMHCIIpan for sample: ${sample_id}"
-    """
-}
-
-process CheckMissingChunks_MHC1 {
-    input:
-    path xls_files
-
-    output:
-    path "missing_chunks_mhc1.csv", emit: missing_chunks_mhc1
-
-    script:
-    """
-    Rscript ${params.check_missing_script} . missing_chunks_mhc1.csv 10000
-    """
-}
-
-
-process CheckMissingChunks_MHC2 {
-    input:
-    path xls_files
-
-    output:
-    path "missing_chunks_mhc2.csv", emit: missing_chunks_mhc2
-
-    script:
-    """
-    Rscript ${params.check_missing_script} . missing_chunks_mhc2.csv 10000
-    """
-}
-
-process RunNetMHCpan_Rerun {
-    tag "Retry NetMHCpan - ${allele}_${chunk_name}"
-
-    input:
-    tuple val(allele), path(chunk_path), val(chunk_name), path(missing_chunks_path)
-
-    output:
-    path "mhc1_${allele}_*.xls", emit: rerun_results
-
-
-    script:
-    """
-    export allele="${allele}"
-    export chunk_name="${chunk_name}"
-    export chunk_path="${chunk_path}"
-    export missing_chunks_path="${missing_chunks_path}"
-
-    output_file="mhc1_\${allele}_\${chunk_name}.xls"
-    chunk_short=\$(echo "\${chunk_name}" | sed 's/^mhc1_part_//')
-
-    should_run=\$(Rscript -e '
-    df <- read.csv(Sys.getenv("missing_chunks_path"), stringsAsFactors = FALSE)
-    allele <- Sys.getenv("allele")
-    chunk <- Sys.getenv("chunk_name")
-    chunk <- sub("^mhc1_part_", "", chunk)
-    match <- any(df\$allele == allele & df\$chunk == chunk)
-    cat(if (match) "TRUE" else "FALSE")
-    ')
-
-    if [ "\$should_run" = "TRUE" ]; then
-        echo "🔁 Rerunning: allele=\$allele, chunk=\$chunk_name"
-        tcsh ${params.tool_mhc1} -a "\$allele" -f "\$chunk_path" -inptype 0 -l 9 -BA -xls -xlsfile "\${output_file}" 2> error.log
+        echo "➡️ [\$(basename "\$chunk")] Running chunk for allele: ${allele}"
+        tcsh ${params.tool_mhc1} -a "${allele}" -f "\$(realpath "\$chunk")" -inptype 0 -l 9 -BA -xls -xlsfile "temp.xls" > /dev/null 2> error.log
         status=\$?
 
-        if grep -q "not in allele list" error.log; then
-            echo "⚠️ Skipped unsupported allele: \$allele"
-            rm -f "\${output_file}" error.log
-            exit 0
+        if grep -qi "could not find allele" error.log || grep -qi "not in allele list" error.log; then
+            echo "⚠️ Skipping unsupported allele: ${allele}"
+            cat error.log
+            rm -f temp.xls error.log
+            continue
         fi
 
-        if [ \$status -eq 0 ]; then
-            echo "✅ Retry successful: \$allele, \$chunk_name"
+        if [[ \$status -eq 0 && -s temp.xls ]]; then
+            echo "✅ Successfully processed chunk: \$(basename "\$chunk")"
+            cat temp.xls >> "\$out_file"
+            found_any=1
         else
-            echo "❌ Retry failed: \$allele, \$chunk_name, exit code \$status"
+            echo "❌ Chunk failed: \$(basename "\$chunk"), status=\$status"
             cat error.log
         fi
-    else
-        echo "✔️ Chunk \$chunk_name for allele \$allele not flagged as missing, skipping."
-    fi
-    """
 
+        rm -f temp.xls error.log
+    done
 
-
-}
-
-process RunNetMHCIIpan_Rerun {
-    tag "Retry NetMHCIIpan - ${allele}_${chunk_name}"
-
-    input:
-    tuple val(allele), path(chunk_path), val(chunk_name), path(missing_chunks_path)
-
-    output:
-    path "mhc2_${allele}_*.xls", emit: rerun_results
-
-    script:
-    """
-    output_file="mhc2_${allele}_${chunk_name}.xls"
-    chunk_short="\$(echo "${chunk_name}" | sed 's/^mhc2_part_//')"
-
-    # Use R to check if this allele + chunk are flagged as missing
-    should_run=\$(Rscript -e '
-      df <- read.csv("${missing_chunks_path}", stringsAsFactors = FALSE)
-      allele <- "${allele}"
-      chunk <- "${chunk_name}"
-      chunk <- sub("^mhc2_part_", "", chunk)
-      match <- any(df\$allele == allele & df\$chunk == chunk)
-      cat(if (match) "TRUE" else "FALSE")
-    ')
-
-    if [ "\$should_run" = "TRUE" ]; then
-        echo "🔁 Rerunning: allele=${allele}, chunk=${chunk_name}"
-
-        tcsh ${params.tool_mhc2} -a "${allele}" -f "${chunk_path}" -inptype 0 -length 15 -xls -xlsfile "\${output_file}" 2> error.log
-        status=\$?
-
-        if grep -q "not in allele list" error.log; then
-            echo "⚠️ Skipped unsupported allele: \${allele}"
-            rm -f "\${output_file}" error.log
-            exit 0
-        fi
-
-        if [ \$status -eq 0 ]; then
-            echo "✅ Retry successful: \${allele}, \${chunk_name}"
-        else
-            echo "❌ Retry failed: \${allele}, \${chunk_name}, exit code \$status"
-            cat error.log
-        fi
-    else
-        echo "✔️ Chunk \${chunk_name} for allele \${allele} not flagged as missing, skipping."
+    if [[ \$found_any -eq 0 ]]; then
+        echo "⚠️ No valid chunks processed for ${allele}"
+        touch "mhc1_${allele}.xls"
     fi
     """
 }
+
+
+process NetMHCIIpan {
+    tag "NetMHCIIpan - ${allele}"
+    publishDir "results/mhc2_xls", pattern: "mhc2_*.xls", mode: 'move'
+
+
+    input:
+    tuple val(allele), path(chunk_dir)
+
+    output:
+    path "mhc2_${allele}.xls", optional: true, emit: mhc2_result
+
+    script:
+    """
+    set +e
+    echo "▶️ Running NetMHCIIpan for allele: ${allele}"
+    out_file="mhc2_${allele}.xls"
+    found_any=0
+
+    echo "📁 Using chunk directory: ${chunk_dir}"
+    ls -lh "${chunk_dir}"
+
+    for chunk in "${chunk_dir}"/mhc2_part_*; do
+        if [ ! -f "\$chunk" ]; then
+            echo "⚠️ Skipping non-existent or non-regular file: \$chunk"
+            continue
+        fi
+
+        echo "➡️ [\$(basename "\$chunk")] Running chunk for allele: ${allele}"
+        tcsh ${params.tool_mhc2} -a "${allele}" -f "\$(realpath "\$chunk")" -inptype 0 -length 15 -xls -xlsfile "temp.xls" > /dev/null 2> error.log
+        status=\$?
+
+        if grep -qi "could not find allele" error.log || grep -qi "not in allele list" error.log; then
+            echo "⚠️ Skipping unsupported allele: ${allele}"
+            cat error.log
+            rm -f temp.xls error.log
+            # Don't exit! Just skip this chunk and continue
+            continue
+        fi
+
+
+        if [[ \$status -eq 0 && -s temp.xls ]]; then
+            echo "✅ Successfully processed chunk: \$(basename "\$chunk")"
+            cat temp.xls >> "\$out_file"
+            found_any=1
+        else
+            echo "❌ Chunk failed: \$(basename "\$chunk"), status=\$status"
+            cat error.log
+        fi
+
+        rm -f temp.xls error.log
+    done
+
+    if [[ \$found_any -eq 0 ]]; then
+        echo "⚠️ No valid chunks processed for ${allele} (all skipped or unsupported)"
+        touch "mhc2_${allele}.xls"
+    fi
+
+    """
+}
+
 process UpdateGlobalMHC1Affinity {
     tag "Update global MHC-I affinity"
-    publishDir "data/combined_mhc1_affinity.rds", mode: 'copy'
+    publishDir "data", mode: 'copy'
 
     input:
     path global_rds
     path new_rds
 
     output:
-    path "${global_rds[0].getName()}", emit: updated_mhc1_rds
-
+    path "mhc1_affinity.rds", emit: updated_mhc1_rds
 
     script:
     """
     Rscript -e '
-    message("🔁 Updating MHC-I global RDS...")
-    global <- readRDS("${global_rds}")
-    new <- readRDS("${new_rds}")
+      message("🔁 Updating MHC-I global RDS...")
+      global <- readRDS("${global_rds}")
+      new <- readRDS("${new_rds}")
 
-    new_cols <- setdiff(colnames(new), colnames(global))
-    updated <- cbind(global, new[, new_cols, drop=FALSE])
+      new_cols <- setdiff(colnames(new), colnames(global))
 
-    tmp_file <- "temp_mhc2_affinity.rds"
-    final_file <- "${global_rds.getName()}"
-
-    saveRDS(updated, tmp_file)
-
-    if (!file.rename(tmp_file, final_file)) {
-        stop("❌ Failed to move temporary file to final destination")
-    }
+      if (length(new_cols) == 0 || nrow(new) == 0) {
+        message("🟢 No new alleles or data rows to add — using existing RDS")
+        file.copy("${global_rds}", "mhc1_affinity.rds")
+      } else {
+        updated <- cbind(global, new[, new_cols, drop=FALSE])
+        saveRDS(updated, "mhc1_affinity.rds")
+      }
     '
     """
-
 }
+
 process UpdateGlobalMHC2Affinity {
     tag "Update global MHC-II affinity"
-    publishDir "data/combined_mhc2_affinity.rds", mode: 'copy'
+    publishDir "data", mode: 'copy'
 
     input:
     path global_rds
     path new_rds
 
     output:
-    path "${global_rds[0].getName()}", emit: updated_mhc2_rds
+    path "mhc2_affinity.rds", emit: updated_mhc2_rds
 
     script:
     """
@@ -541,32 +467,37 @@ process UpdateGlobalMHC2Affinity {
       new <- readRDS("${new_rds}")
 
       new_cols <- setdiff(colnames(new), colnames(global))
-      updated <- cbind(global, new[, new_cols, drop=FALSE])
 
-      saveRDS(updated, "${global_rds.getName()}")
+      if (length(new_cols) == 0 || nrow(new) == 0) {
+        message("🟢 No new alleles or data rows to add — using existing RDS")
+        file.copy("${global_rds}", "mhc2_affinity.rds")
+      } else {
+        updated <- cbind(global, new[, new_cols, drop=FALSE])
+        saveRDS(updated, "mhc2_affinity.rds")
+      }
     '
     """
 }
+
+
 
 
 process ParseNetMHCToRDS {
     tag "Parse NetMHC xls to RDS"
 
     input:
-    path xls_files  // <- this is now a *list of files*
+    path xls_dir
     path r_script
 
     output:
     path "*.rds", optional: true, emit: affinity_rds_mhc1
 
-
     script:
     """
-    echo "Found \$(ls *.xls | wc -l) .xls files"
-    Rscript  ${params.parse_netmhc_to_rds} . "mhc1_affinity_matrix.rds"
+    echo "Found \$(ls \${xls_dir}/*.xls | wc -l) .xls files"
+    Rscript ${params.parse_netmhc_to_rds} ${xls_dir} mhc1_affinity_matrix.rds
     """
 }
-
 
 
 process ParseNetMHCToRDS_II {
@@ -581,9 +512,13 @@ process ParseNetMHCToRDS_II {
 
     script:
     """
-    Rscript ${params.parse_netmhc_to_rds} ${xls_dir} ${xls_dir.simpleName}_affinity_matrix.rds
+    echo "Parsing MHC-II .xls files from directory: ${xls_dir}"
+    ls -lh ${xls_dir}/*.xls || echo "⚠️ No .xls files found"
+
+    Rscript ${params.parse_netmhc_to_rds} ${xls_dir} mhc2_affinity_matrix.rds
     """
 }
+
 
 process PrepareMGBSGenotypes {
     tag "Prepare MGBS Genotype RDS"
@@ -623,6 +558,22 @@ process CalculateAllMGBS {
     """
 }
 
+def readAlleles = { file_ch ->
+    file_ch
+        .flatMap { file ->
+            file.readLines().findAll { it?.trim() }
+        }
+}
+
+
+def createAlleleChunkJobs = { alleles_ch, chunks_dir_ch ->
+    chunks_dir_ch
+        .map { dir -> file(dir).listFiles().findAll { it.name.startsWith('mhc') && it.size() > 0 } }
+        .flatten()
+        .combine(alleles_ch)
+        .map { chunk, allele -> tuple(allele, chunk) }
+}
+
 
 
 workflow {
@@ -656,9 +607,9 @@ workflow {
 
     def genotype_jsons, parsed_csv_ch, mgbs_ready
 
-    if (params.genotype_csv && file(params.genotype_csv).exists()) {
-        println "📄 Using provided genotype CSV: ${params.genotype_csv}"
-        parsed_csv_ch = Channel.value(file(params.genotype_csv))
+    if (params.genotypes && file(params.genotypes).exists()) {
+        println "📄 Using provided genotype CSV: ${params.genotypes}"
+        parsed_csv_ch = Channel.value(file(params.genotypes))
         mgbs_ready = parsed_csv_ch
     } else {
         def hla_out
@@ -684,72 +635,36 @@ workflow {
     if (params.use_precomputed_affinities) {
         println "🧠 Using precomputed affinities"
 
+        // Load static precomputed RDS matrices
         def mhc1_rds_ch = Channel.value(file("/home/arne/projects/genomics_england/data/mhc1_rand_matrix.rds"))
-        def mhc2_rds_ch = Channel.value(file("/home/arne/projects/genomics_england/data/mhc1_rand_matrix.rds"))
+        def mhc2_rds_ch = Channel.value(file("/home/arne/projects/genomics_england/data/mhc2_rand_matrix.rds"))
 
+        // Filter out alleles already in the RDS matrices
         def mhc1_filtered = FilterPrecomputedAllelesFromRDS_MHC1(mhc1_alleles, mhc1_rds_ch)
         def mhc2_filtered = FilterPrecomputedAllelesFromRDS_MHC2(mhc2_alleles, mhc2_rds_ch)
 
-        def mhc1_combined = mhc1_filtered.map { a -> tuple("global", a) }.combine(chunk_out.mhc1_chunks)
-        def mhc2_combined = mhc2_filtered.map { a -> tuple("global", a) }.combine(chunk_out.mhc2_chunks)
+        def mhc1_filtered_alleles = readAlleles(mhc1_filtered)
+        def mhc2_filtered_alleles = readAlleles(mhc2_filtered)
 
-        def mhc1_results = mhc1_combined | RunNetMHCpan
-        def mhc2_results = mhc2_combined | RunNetMHCIIpan
-
-        def valid_mhc1_results = mhc1_results.filter { it.name.endsWith('.xls') && it.size() > 10 * 1024 }
-        def valid_mhc2_results = mhc2_results.filter { it.name.endsWith('.xls') && it.size() > 10 * 1024 }
-
-        def check_missing1 = CheckMissingChunks_MHC1(valid_mhc1_results.collect())
-        def check_missing2 = CheckMissingChunks_MHC2(valid_mhc2_results.collect())
-
-        def rerun_inputs_mhc1 = check_missing1.missing_chunks_mhc1
-            .splitCsv(header: true)
-            .map { row ->
-                def chunk_name = "mhc1_part_${row.chunk}"
-                def chunk_file = file("results/reference/mhc1_chunks/${chunk_name}")
-                tuple(row.allele, chunk_file, chunk_name)
-            }
-            .combine(check_missing1.missing_chunks_mhc1)
-
-        def rerun_inputs_mhc2 = check_missing2.missing_chunks_mhc2
-            .splitCsv(header: true)
-            .map { row ->
-                def chunk_name = "mhc2_part_${row.chunk}"
-                def chunk_file = file("results/reference/mhc2_chunks/${chunk_name}")
-                tuple(row.allele, chunk_file, chunk_name)
-            }
-            .combine(check_missing2.missing_chunks_mhc2)
-
-        def mhc1_rerun = rerun_inputs_mhc1 | RunNetMHCpan_Rerun
-        def mhc2_rerun = rerun_inputs_mhc2 | RunNetMHCIIpan_Rerun
-
-        // 📆 Wait for all MHC1 outputs (main + rerun), deduplicate by largest size
-        def collected_primary = mhc1_results.collect()
-        def collected_rerun = mhc1_rerun.collect()
-        def all_mhc1_files = collected_primary
-            .mix(collected_rerun)
-            .flatten()
-            .map { f -> tuple(f.getName(), f) }
-            .groupTuple()
-            .map { name, files -> files.max { it.size() } }
-            .collect()
+        // ✅ Get chunk directories (so we loop internally inside the process)
+        def mhc1_chunk_dir = chunk_out.mhc1_chunks.distinct()
+        def mhc2_chunk_dir = chunk_out.mhc2_chunks.distinct()
+        mhc2_chunk_dir.view { it -> println "📁 MHC2 chunk dir passed: ${it}" }
 
 
-        def collected_mhc2_main = mhc2_results.collect()
-        def collected_mhc2_rerun = mhc2_rerun.collect()
 
-        def all_mhc2_results = collected_mhc2_main
-            .mix(collected_mhc2_rerun)
-            .flatten()
-            .map { f -> tuple(f.getName(), f) }
-            .filter { name, file -> file.size() > 10 * 1024 }
-            .groupTuple()
-            .map { name, files -> files.max { it.size() } }
-            .collect()
+        // ✅ One job per allele, directory passed as input
+        def mhc1_jobs = mhc1_filtered_alleles.combine(mhc1_chunk_dir)
+        def mhc2_jobs = mhc2_filtered_alleles.combine(mhc2_chunk_dir)
 
+        def mhc1_results = mhc1_jobs | NetMHCpan
+        def mhc2_results = mhc2_jobs | NetMHCIIpan
 
-        def parsed_mhc1 = ParseNetMHCToRDS(all_mhc1_files, file(params.parse_netmhc_to_rds)).affinity_rds_mhc1
-        def parsed_mhc2 = ParseNetMHCToRDS_II(all_mhc2_results, file(params.parse_netmhc_to_rds)).affinity_rds_mhc2
+        def mhc1_result_dir = mhc1_results.collect().map { file("results/mhc1_xls") }
+        def mhc2_result_dir = mhc2_results.collect().map { file("results/mhc2_xls") }
+
+        def parsed_mhc1 = ParseNetMHCToRDS(mhc1_result_dir, file(params.parse_netmhc_to_rds)).affinity_rds_mhc1
+        def parsed_mhc2 = ParseNetMHCToRDS_II(mhc2_result_dir, file(params.parse_netmhc_to_rds)).affinity_rds_mhc2
 
         def updated_mhc1 = UpdateGlobalMHC1Affinity(file(params.mhc1_affinity), parsed_mhc1)
         def updated_mhc2 = UpdateGlobalMHC2Affinity(file(params.mhc2_affinity), parsed_mhc2)
@@ -757,60 +672,26 @@ workflow {
         def mgbs_inputs = mgbs_ready.combine(updated_mhc1).combine(updated_mhc2)
         mgbs_inputs | CalculateAllMGBS
 
+
     } else {
         println "🧪 Calculating NetMHC affinities from scratch"
+        def mhc1_dir = chunk_out.mhc1_chunks.map { it.getParent() }.distinct()
+        def mhc2_dir = chunk_out.mhc2_chunks.map { it.getParent() }.distinct()
 
-        def mhc1_combined = mhc1_alleles.map { a -> tuple("global", a) }.combine(chunk_out.mhc1_chunks)
-        def mhc2_combined = mhc2_alleles.map { a -> tuple("global", a) }.combine(chunk_out.mhc2_chunks)
-        // Run NetMHCpan
-        def mhc1_results = mhc1_combined | RunNetMHCpan
-        def mhc2_results = mhc2_combined | RunNetMHCIIpan
+        // One job per allele, receiving the full chunk directory
+        def mhc1_combined = mhc1_alleles.combine(mhc1_dir)
+        def mhc2_combined = mhc2_alleles.combine(mhc2_dir)
 
-        // ✅ Filter only non-empty .xls files from NetMHCpan
-        def valid_mhc1_results = mhc1_results.filter { it.name.endsWith('.xls') && it.size() > 10 * 1024 }
+        // Run NetMHC tools
+        def mhc1_results = mhc1_combined | NetMHCpan
+        def mhc2_results = mhc2_combined | NetMHCIIpan
 
-        // ✅ Only run CheckMissingChunks if we actually got some results
-        def check_missing1 = valid_mhc1_results.ifEmpty { println "⚠️ No NetMHCpan results found — skipping missing chunk check"; return Channel.empty() }
-                                            .collect()
-                                            .ifNotEmpty { collected -> CheckMissingChunks_MHC1(collected) }
+        def valid_mhc1_results = mhc1_results.filter { it.name.endsWith('.xls') }
+        def valid_mhc2_results = mhc2_results.filter { it.name.endsWith('.xls') }
 
-        // ✅ Always run CheckMissingChunks_MHC2 (NetMHCIIpan runs regardless)
-        def check_missing2 = mhc2_results
-            .ifEmpty { println "⚠️ No NetMHCIIpan results found — skipping missing chunk check"; return Channel.empty() }
-            .collect()
-            .ifNotEmpty { collected -> CheckMissingChunks_MHC2(collected) }
+        def all_mhc1_results = valid_mhc1_results
+        def all_mhc2_results = valid_mhc2_results
 
-
-
-        def missing_csv1_path = check_missing1.missing_chunks_mhc1
-        def missing_csv2_path = check_missing2.missing_chunks_mhc2
-
-        def missing_csv_file = check_missing1.missing_chunks_mhc1
-        def missing_csv_path = missing_csv_file.map { it.toAbsolutePath().toString() }
-
-        def rerun_inputs_mhc1 = missing_csv_file
-            .splitCsv(header: true)
-            .combine(missing_csv_path)
-            .map { row, path_str ->
-                def chunk_name = "mhc1_part_${row.chunk}"
-                def chunk_file = file("results/reference/mhc1_chunks/${chunk_name}")
-                tuple(row.allele, chunk_file, chunk_name, path_str)
-            }
-
-
-        def rerun_inputs_mhc2 = missing_csv2_path
-            .splitCsv(header: true)
-            .map { row ->
-                def chunk_name = "mhc2_part_${row.chunk}"
-                def chunk_file = file("/results/reference/mhc2_chunks/${chunk_name}")
-                tuple(row.allele, chunk_file, chunk_name, missing_csv2_path)
-            }
-
-        def mhc1_rerun = rerun_inputs_mhc1 | RunNetMHCpan_Rerun
-        def mhc2_rerun = rerun_inputs_mhc2 | RunNetMHCIIpan_Rerun
-
-        def all_mhc1_results = mhc1_results.mix(mhc1_rerun).collect()
-        def all_mhc2_results = mhc2_results.mix(mhc2_rerun).collect()
 
         def mhc1_affinity = ParseNetMHCToRDS(all_mhc1_results, file(params.parse_netmhc_to_rds)).affinity_rds_mhc1
         def mhc2_affinity = ParseNetMHCToRDS_II(all_mhc2_results, file(params.parse_netmhc_to_rds)).affinity_rds_mhc2
