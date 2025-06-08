@@ -28,7 +28,7 @@ process HLAHD {
 
     script:
     """
-    echo "🔬 Running HLA-HD for sample: ${sample_id}"
+    echo "Running HLA-HD for sample: ${sample_id}"
 
     source ${params.conda_profile}
     conda activate "${params.hlahd_env}"
@@ -46,7 +46,7 @@ process HLAHD {
     if [[ -s "\$result_file" ]]; then
         cp "\$result_file" "${sample_id}.HLAHD.results.txt"
     else
-        echo "❌ No result file found for sample: ${sample_id}" >&2
+        echo "No result file found for sample: ${sample_id}" >&2
         exit 1
     fi
     """
@@ -67,7 +67,7 @@ process ParseHLAHDToCSV {
     """
 }
 
-// ✅ **Step 1: Run ArcasHLA**
+// Run ArcasHLA
 process ArcasHLA {
     tag "ArcasHLA - ${sample_id}"
     input:
@@ -94,7 +94,7 @@ process ArcasHLA {
     if [ \$? -eq 0 ]; then
         echo "arcasHLA completed successfully for ${sample_id}"
     else
-        echo "❌ Error: arcasHLA failed for ${sample_id}"
+        echo "Error: arcasHLA failed for ${sample_id}"
     fi
     """
 }
@@ -187,7 +187,7 @@ process ExtractUniqueAlleles {
 
 
 
-// ✅ **Generate Peptides**
+// Generate Peptides
 process GeneratePeptides {
     tag "GeneratePeptides"
 
@@ -211,18 +211,18 @@ process GeneratePeptides {
     mhc1_peptides <- generate_random_peptides(1000000, 9)
     mhc2_peptides <- generate_random_peptides(1000000, 15)
 
-    # ✅ Add FASTA headers to peptides
+    # Add FASTA headers to peptides
     mhc1_fasta <- paste0(">peptide_", seq_along(mhc1_peptides), "\\n", mhc1_peptides, collapse = "\\n")
     mhc2_fasta <- paste0(">peptide_", seq_along(mhc2_peptides), "\\n", mhc2_peptides, collapse = "\\n")
 
     writeLines(mhc1_fasta, "mhc1_rand_peptides.fasta")
     writeLines(mhc2_fasta, "mhc2_rand_peptides.fasta")
     '
-    echo "✅ SUCCESS: Peptides generated and saved with correct FASTA headers."
+    echo " SUCCESS: Peptides generated and saved with correct FASTA headers."
     """
 }
 
-// ✅ **Split Peptides into Chunks**
+// Split Peptides into Chunks
 process SplitPeptides {
     tag "SplitPeptides"
 
@@ -241,7 +241,7 @@ process SplitPeptides {
     split -l 20000 ${mhc1_fasta} mhc1_chunks/mhc1_part_
     split -l 20000 ${mhc2_fasta} mhc2_chunks/mhc2_part_
 
-    echo "✅ SUCCESS: Peptides split into chunks."
+    echo "SUCCESS: Peptides split into chunks."
     """
 }
 
@@ -313,7 +313,7 @@ process NetMHCpan {
     script:
     """
     set +e
-    echo "▶️ Running NetMHCpan for allele: ${allele}"
+    echo "Running NetMHCpan for allele: ${allele}"
     out_file="mhc1_${allele}.xls"
     found_any=0
 
@@ -322,27 +322,27 @@ process NetMHCpan {
 
     for chunk in "${chunk_dir}"/mhc1_part_*; do
         if [ ! -f "\$chunk" ]; then
-            echo "⚠️ Skipping non-existent or non-regular file: \$chunk"
+            echo "Skipping non-existent or non-regular file: \$chunk"
             continue
         fi
 
-        echo "➡️ [\$(basename "\$chunk")] Running chunk for allele: ${allele}"
+        echo "[\$(basename "\$chunk")] Running chunk for allele: ${allele}"
         tcsh ${params.tool_mhc1} -a "${allele}" -f "\$(realpath "\$chunk")" -inptype 0 -l 9 -BA -xls -xlsfile "temp.xls" > /dev/null 2> error.log
         status=\$?
 
         if grep -qi "could not find allele" error.log || grep -qi "not in allele list" error.log; then
-            echo "⚠️ Skipping unsupported allele: ${allele}"
+            echo "Skipping unsupported allele: ${allele}"
             cat error.log
             rm -f temp.xls error.log
             continue
         fi
 
         if [[ \$status -eq 0 && -s temp.xls ]]; then
-            echo "✅ Successfully processed chunk: \$(basename "\$chunk")"
+            echo "Successfully processed chunk: \$(basename "\$chunk")"
             cat temp.xls >> "\$out_file"
             found_any=1
         else
-            echo "❌ Chunk failed: \$(basename "\$chunk"), status=\$status"
+            echo "Chunk failed: \$(basename "\$chunk"), status=\$status"
             cat error.log
         fi
 
@@ -350,7 +350,7 @@ process NetMHCpan {
     done
 
     if [[ \$found_any -eq 0 ]]; then
-        echo "⚠️ No valid chunks processed for ${allele}"
+        echo "No valid chunks processed for ${allele}"
         touch "mhc1_${allele}.xls"
     fi
     """
@@ -359,7 +359,7 @@ process NetMHCpan {
 
 process NetMHCIIpan {
     tag "NetMHCIIpan - ${allele}"
-    publishDir "results/mhc2_xls", pattern: "mhc2_*.xls", mode: 'move'
+    publishDir "results/mhc2_xls", pattern: "mhc2_*.xls", mode: 'copy'
 
 
     input:
@@ -371,25 +371,25 @@ process NetMHCIIpan {
     script:
     """
     set +e
-    echo "▶️ Running NetMHCIIpan for allele: ${allele}"
+    echo "Running NetMHCIIpan for allele: ${allele}"
     out_file="mhc2_${allele}.xls"
     found_any=0
 
-    echo "📁 Using chunk directory: ${chunk_dir}"
+    echo "Using chunk directory: ${chunk_dir}"
     ls -lh "${chunk_dir}"
 
     for chunk in "${chunk_dir}"/mhc2_part_*; do
         if [ ! -f "\$chunk" ]; then
-            echo "⚠️ Skipping non-existent or non-regular file: \$chunk"
+            echo "Skipping non-existent or non-regular file: \$chunk"
             continue
         fi
 
-        echo "➡️ [\$(basename "\$chunk")] Running chunk for allele: ${allele}"
+        echo "[\$(basename "\$chunk")] Running chunk for allele: ${allele}"
         tcsh ${params.tool_mhc2} -a "${allele}" -f "\$(realpath "\$chunk")" -inptype 0 -length 15 -xls -xlsfile "temp.xls" > /dev/null 2> error.log
         status=\$?
 
         if grep -qi "could not find allele" error.log || grep -qi "not in allele list" error.log; then
-            echo "⚠️ Skipping unsupported allele: ${allele}"
+            echo "Skipping unsupported allele: ${allele}"
             cat error.log
             rm -f temp.xls error.log
             # Don't exit! Just skip this chunk and continue
@@ -398,11 +398,11 @@ process NetMHCIIpan {
 
 
         if [[ \$status -eq 0 && -s temp.xls ]]; then
-            echo "✅ Successfully processed chunk: \$(basename "\$chunk")"
+            echo "Successfully processed chunk: \$(basename "\$chunk")"
             cat temp.xls >> "\$out_file"
             found_any=1
         else
-            echo "❌ Chunk failed: \$(basename "\$chunk"), status=\$status"
+            echo "Chunk failed: \$(basename "\$chunk"), status=\$status"
             cat error.log
         fi
 
@@ -410,7 +410,7 @@ process NetMHCIIpan {
     done
 
     if [[ \$found_any -eq 0 ]]; then
-        echo "⚠️ No valid chunks processed for ${allele} (all skipped or unsupported)"
+        echo "No valid chunks processed for ${allele} (all skipped or unsupported)"
         touch "mhc2_${allele}.xls"
     fi
 
@@ -431,14 +431,14 @@ process UpdateGlobalMHC1Affinity {
     script:
     """
     Rscript -e '
-      message("🔁 Updating MHC-I global RDS...")
+      message("Updating MHC-I global RDS...")
       global <- readRDS("${global_rds}")
       new <- readRDS("${new_rds}")
 
       new_cols <- setdiff(colnames(new), colnames(global))
 
       if (length(new_cols) == 0 || nrow(new) == 0) {
-        message("🟢 No new alleles or data rows to add — using existing RDS")
+        message("No new alleles or data rows to add — using existing RDS")
         file.copy("${global_rds}", "mhc1_affinity.rds")
       } else {
         updated <- cbind(global, new[, new_cols, drop=FALSE])
@@ -462,14 +462,14 @@ process UpdateGlobalMHC2Affinity {
     script:
     """
     Rscript -e '
-      message("🔁 Updating MHC-II global RDS...")
+      message("Updating MHC-II global RDS...")
       global <- readRDS("${global_rds}")
       new <- readRDS("${new_rds}")
 
       new_cols <- setdiff(colnames(new), colnames(global))
 
       if (length(new_cols) == 0 || nrow(new) == 0) {
-        message("🟢 No new alleles or data rows to add — using existing RDS")
+        message("No new alleles or data rows to add — using existing RDS")
         file.copy("${global_rds}", "mhc2_affinity.rds")
       } else {
         updated <- cbind(global, new[, new_cols, drop=FALSE])
@@ -513,7 +513,7 @@ process ParseNetMHCToRDS_II {
     script:
     """
     echo "Parsing MHC-II .xls files from directory: ${xls_dir}"
-    ls -lh ${xls_dir}/*.xls || echo "⚠️ No .xls files found"
+    ls -lh ${xls_dir}/*.xls || echo "No .xls files found"
 
     Rscript ${params.parse_netmhc_to_rds} ${xls_dir} mhc2_affinity_matrix.rds
     """
@@ -583,7 +583,7 @@ workflow {
     def fastq_inputs
 
     if (params.data_format_genotype == "bam") {
-        println "🔄 Using BAM input format"
+        println "Using BAM input format"
         def bam_inputs = Channel
             .fromPath("${params.data_path}")
             .map { bam -> tuple(bam.getBaseName(), bam) }
@@ -591,7 +591,7 @@ workflow {
         fastq_inputs = bam_inputs | BamConversion
 
     } else {
-        println "📅 Using FASTQ input format"
+        println "Using FASTQ input format"
         fastq_inputs = Channel
             .fromPath(params.data_path, type: 'dir')
             .filter { it.exists() }
@@ -608,36 +608,36 @@ workflow {
     def genotype_jsons, parsed_csv_ch, mgbs_ready
 
     if (params.genotypes && file(params.genotypes).exists()) {
-        println "📄 Using provided genotype CSV: ${params.genotypes}"
+        println "Using provided genotype CSV: ${params.genotypes}"
         parsed_csv_ch = Channel.value(file(params.genotypes))
         mgbs_ready = parsed_csv_ch
     } else {
         def hla_out
         if (params.hla_caller == "arcasHLA") {
-            println "🧆 Running ArcasHLA"
+            println "Running ArcasHLA"
             hla_out = fastq_inputs | ArcasHLA | PMappingAndFilter
             genotype_jsons = hla_out.map { it[1] }
             parsed_csv_ch = ParseGenotypesToCSV(genotype_jsons)
             mgbs_ready = PrepareMGBSGenotypes(genotype_jsons)
         } else if (params.hla_caller == "HLAHD") {
-            println "🧆 Running HLA-HD"
+            println "Running HLA-HD"
             hla_out = fastq_inputs | HLAHD
             genotype_jsons = hla_out.map { it[1] }
             parsed_csv_ch = ParseHLAHDToCSV(genotype_jsons)
             mgbs_ready = parsed_csv_ch
         } else {
-            error "❌ Unknown HLA caller selected: ${params.hla_caller}"
+            error "Unknown HLA caller selected: ${params.hla_caller}"
         }
     }
 
     def (mhc1_alleles, mhc2_alleles) = ExtractUniqueAlleles(parsed_csv_ch, file(params.convert_hla))
 
     if (params.use_precomputed_affinities) {
-        println "🧠 Using precomputed affinities"
+        println "Using precomputed affinities"
 
         // Load static precomputed RDS matrices
-        def mhc1_rds_ch = Channel.value(file("/home/arne/projects/genomics_england/data/mhc1_rand_matrix.rds"))
-        def mhc2_rds_ch = Channel.value(file("/home/arne/projects/genomics_england/data/mhc2_rand_matrix.rds"))
+        def mhc1_rds_ch = Channel.value(file("/home/arne/projects/mhc_survival/data/mhc1_rand_matrix.rds"))
+        def mhc2_rds_ch = Channel.value(file("/home/arne/projects/mhc_survival/data/mhc2_rand_matrix.rds"))
 
         // Filter out alleles already in the RDS matrices
         def mhc1_filtered = FilterPrecomputedAllelesFromRDS_MHC1(mhc1_alleles, mhc1_rds_ch)
@@ -646,14 +646,13 @@ workflow {
         def mhc1_filtered_alleles = readAlleles(mhc1_filtered)
         def mhc2_filtered_alleles = readAlleles(mhc2_filtered)
 
-        // ✅ Get chunk directories (so we loop internally inside the process)
+        // Get chunk directories (so we loop internally inside the process)
         def mhc1_chunk_dir = chunk_out.mhc1_chunks.distinct()
         def mhc2_chunk_dir = chunk_out.mhc2_chunks.distinct()
-        mhc2_chunk_dir.view { it -> println "📁 MHC2 chunk dir passed: ${it}" }
 
 
 
-        // ✅ One job per allele, directory passed as input
+        // One job per allele, directory passed as input
         def mhc1_jobs = mhc1_filtered_alleles.combine(mhc1_chunk_dir)
         def mhc2_jobs = mhc2_filtered_alleles.combine(mhc2_chunk_dir)
 
@@ -674,7 +673,7 @@ workflow {
 
 
     } else {
-        println "🧪 Calculating NetMHC affinities from scratch"
+        println "Calculating NetMHC affinities from scratch"
         def mhc1_dir = chunk_out.mhc1_chunks.map { it.getParent() }.distinct()
         def mhc2_dir = chunk_out.mhc2_chunks.map { it.getParent() }.distinct()
 
