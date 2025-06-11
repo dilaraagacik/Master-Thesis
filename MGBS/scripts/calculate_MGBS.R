@@ -150,7 +150,7 @@ MGBS_df <- data.frame(
 
 keep_idx <- which(!is.na(MGBS_df$MGBS1) & !is.na(MGBS_df$MGBS2))
 MGBS_df <- MGBS_df[keep_idx, ]
-cat("Final patients kept for ECDF calculation:", nrow(MGBS_df), "\n")
+cat("✅ Final patients kept for ECDF calculation:", nrow(MGBS_df), "\n")
 
 # Add MGBSd
 calculate_MGBS_norm <- function(df, var_MHC1, var_MHC2) {
