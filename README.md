@@ -10,9 +10,9 @@ A Nextflow pipeline to compute **immune selection signals** from HLA binding aff
 
 1. [HLA Genotyping: arcasHLA (v0.2.0)](https://github.com/RabadanLab/arcasHLA) / [HLA-HD (v1.3.0)](https://w3.genome.med.kyoto-u.ac.jp/HLA-HD/)
 2. [MHC Binding Prediction: NetMHCpan (v4.0)](https://services.healthtech.dtu.dk/services/NetMHCpan-4.0/) / [NetMHCIIpan (v3.2)](https://services.healthtech.dtu.dk/services/NetMHCIIpan-3.2/)
-3. Neoantigen Depletion Analysis (Rsim)
-4. MHC Genotype Binding Score (MGBS) calculation
-5. PHBR score computation (Patient Harmonic Best Rank)
+3. [Neoantigen Depletion Analysis (Rsim)](https://pubmed.ncbi.nlm.nih.gov/31768072/)
+4. [MHC Genotype Binding Score (MGBS) calculation](https://pubmed.ncbi.nlm.nih.gov/39349759/)
+5. [PHBR score computation (Patient Harmonic Best Rank)](https://pmc.ncbi.nlm.nih.gov/articles/PMC5711564/)
 
 ## Usage
 
