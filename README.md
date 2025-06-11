@@ -1,6 +1,6 @@
 # Immune Selection Signal Analysis Pipeline
 
-<img src="https://www.nextflow.io/assets/img/nextflow-logo.png" alt="Nextflow" width="200"/>
+<img src="nextflow.png" alt="Nextflow" width="200"/>
 
 A Nextflow pipeline to compute **immune selection signals** from HLA binding affinity in large cancer NGS datasets.
 
