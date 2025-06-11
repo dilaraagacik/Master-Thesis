@@ -16,9 +16,16 @@ A Nextflow pipeline to compute **immune selection signals** from HLA binding aff
 
 ## Usage
 
-Example usage
+Example usage for PHBR
 ```bash
-nextflow run main.nf -profile slurm --mode rsim
+cd PHBR_Rsim
+nextflow run main.nf -profile slurm --mode phbr --input_format maf
+```
+Example usage for MGBS
+```
+cd MGBS
+nextflow run main.nf -profile slurm --use_precomputed_affinities true --genotypes path/to/data
+```
 
 ### Available options
 
