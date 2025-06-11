@@ -1,86 +1,21 @@
-# A Nextflow pipeline to analyse HLA binding affinity based immune selection signals in cancer next generation sequencing data.
+# Immune Selection Signal Analysis Pipeline
 
-Immune Selection Signal Analysis Pipeline
+<img src="https://www.nextflow.io/assets/img/nextflow-logo.png" alt="Nextflow" width="200"/>
 
-This repository contains a Nextflow-based pipeline developed to analyze HLA binding affinity-based immune selection signals in large cancer NGS datasets. The pipeline automates the computation of three key immunogenomic metrics:
+A Nextflow pipeline to compute **immune selection signals** from HLA binding affinity in large cancer NGS datasets.
 
-MHC Genotype Binding Score (MGBS)
+> The pipeline was developed and validated on the TCGA dataset and runs on HPC clusters (tested with Slurm). You may need to adapt some paths and configuration files for your cluster environment.
 
-Patient Harmonic Best Rank (PHBR)
+## Pipeline steps
 
-Rsim metric for neoantigen depletion
+1. [HLA Genotyping: arcasHLA / HLA-HD](https://github.com/RabadanLab/arcasHLA)
+2. [MHC Binding Prediction: NetMHCpan / NetMHCIIpan](https://services.healthtech.dtu.dk/services/NetMHCpan-4.1/)
+3. [Neoantigen Depletion Analysis (Rsim)](https://pubmed.ncbi.nlm.nih.gov/31243365/)
+4. MHC Genotype Binding Score (MGBS) calculation
+5. PHBR score computation (Patient Harmonic Best Rank)
+6. Immune cell deconvolution using [ConsensusTME](https://github.com/andrewGhazi/ConsensusTME)
 
-These metrics enable the quantification of immune selection signals and their correlation with immune infiltration across different cancer types.
+## Usage
 
-Features
-Modular, reproducible pipeline implemented in Nextflow
-
-Flexible input formats: supports RNA-seq and whole exome sequencing (WES) data
-
-Automated workflows for:
-
-HLA genotyping with arcasHLA and HLA-HD
-
-MHC binding prediction with NetMHCpan and NetMHCIIpan
-
-Neoantigen depletion analysis (Rsim)
-
-Immune cell deconvolution using ConsensusTME
-
-Supports large-scale pan-cancer analyses (validated on TCGA dataset)
-
-Pipeline Overview
-MGBS Workflow
-Estimates the peptide-binding capacity of a patient’s HLA genotype using randomly generated peptides:
-
-MGBS-I (MHC class I)
-
-MGBS-II (MHC class II)
-
-PHBR / Rsim Workflow
-Predicts the immunogenic potential of somatic mutations and quantifies neoantigen depletion:
-
-PHBR scores for MHC-I and MHC-II
-
-Rsim metric to assess negative selection signals in HLA-binding regions
-
-Installation
-Requirements:
-
-Nextflow
-
-Conda (for environment management)
-
-Slurm or other compatible workload manager (for HPC)
-
-Clone the repository:
-
-git clone https://github.com/dilaraagacik/Master-Thesis.git
-
-Usage
-Run MGBS pipeline:
-
+```bash
 nextflow run main.nf --input /path/to/input --output /path/to/output
-
-Run PHBR + Rsim pipeline:
-
-
-nextflow run main.nf --input /path/to/input --output /path/to/output
-Options and configuration parameters can be set in nextflow.config.
-
-Data Sources
-TCGA WES + RNA-seq data
-
-Reference HLA allele sequences (IPD-IMGT/HLA database)
-
-NetMHCpan / NetMHCIIpan models
-
-References
-Claeys and Van den Eynden, 2024 - MGBS metric
-
-Marty et al., 2017 - PHBR metric
-
-Van den Eynden et al., 2019 - Rsim metric
-
-
-
