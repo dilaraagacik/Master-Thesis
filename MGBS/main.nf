@@ -28,7 +28,7 @@ process HLAHD {
 
     script:
     """
-    echo "Running HLA-HD for sample: ${sample_id}"
+    echo "🔬 Running HLA-HD for sample: ${sample_id}"
 
     source ${params.conda_profile}
     conda activate "${params.hlahd_env}"
@@ -67,7 +67,7 @@ process ParseHLAHDToCSV {
     """
 }
 
-// Run ArcasHLA
+// Step 1: Run ArcasHLA
 process ArcasHLA {
     tag "ArcasHLA - ${sample_id}"
     input:
@@ -117,7 +117,7 @@ process PMappingAndFilter {
     # Run the R script
     Rscript ${params.tool_pmapping} "${hla_genotype}" "${params.p_mapping_dataset}" "${sample_id}_filtered_genotype.json"
 
-    echo "✅ SUCCESS: Completed P-Mapping for ${sample_id}"
+    echo "SUCCESS: Completed P-Mapping for ${sample_id}"
     """
 }
 
@@ -218,7 +218,7 @@ process GeneratePeptides {
     writeLines(mhc1_fasta, "mhc1_rand_peptides.fasta")
     writeLines(mhc2_fasta, "mhc2_rand_peptides.fasta")
     '
-    echo " SUCCESS: Peptides generated and saved with correct FASTA headers."
+    echo "SUCCESS: Peptides generated and saved with correct FASTA headers."
     """
 }
 
@@ -313,11 +313,11 @@ process NetMHCpan {
     script:
     """
     set +e
-    echo "Running NetMHCpan for allele: ${allele}"
+    echo "▶️ Running NetMHCpan for allele: ${allele}"
     out_file="mhc1_${allele}.xls"
     found_any=0
 
-    echo "📁 Using chunk directory: ${chunk_dir}"
+    echo "Using chunk directory: ${chunk_dir}"
     ls -lh "${chunk_dir}"
 
     for chunk in "${chunk_dir}"/mhc1_part_*; do
