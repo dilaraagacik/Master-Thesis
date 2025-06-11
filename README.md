@@ -9,13 +9,28 @@ A Nextflow pipeline to compute **immune selection signals** from HLA binding aff
 ## Pipeline steps
 
 1. [HLA Genotyping: arcasHLA / HLA-HD](https://github.com/RabadanLab/arcasHLA)
-2. [MHC Binding Prediction: NetMHCpan / NetMHCIIpan](https://services.healthtech.dtu.dk/services/NetMHCpan-4.1/)
-3. [Neoantigen Depletion Analysis (Rsim)](https://pubmed.ncbi.nlm.nih.gov/31243365/)
+2. [MHC Binding Prediction: NetMHCpan / NetMHCIIpan](https://services.healthtech.dtu.dk/services/NetMHCpan-4.0/)
+3. Neoantigen Depletion Analysis (Rsim)
 4. MHC Genotype Binding Score (MGBS) calculation
 5. PHBR score computation (Patient Harmonic Best Rank)
-6. Immune cell deconvolution using [ConsensusTME](https://github.com/andrewGhazi/ConsensusTME)
 
 ## Usage
 
+Example usage
 ```bash
-nextflow run main.nf --input /path/to/input --output /path/to/output
+nextflow run main.nf -profile slurm --mode rsim
+
+### Available options
+
+| Option                         | Description |
+|--------------------------------|-------------|
+| `--input_format`                | Mutation input file format (`vcf` or `maf`). |
+| `--data_format_genotype`        | Input format for HLA genotyping (`bam` or `fastq`). |
+| `--hla_caller`                  | Genotyping tool to use (`arcasHLA` or `hlahd`). |
+| `--use_precomputed_affinities`  | Use precomputed affinity matrices (`true` or `false`). |
+| `--mode`                        | Scoring module to run (`phbr` or `rsim`). |
+| `--genotypes`                   | Path to CSV file with predefined HLA genotypes (optional). |
+| `--kd_threshold`                | Threshold for predicted binding affinity in nM (default `500`). |
+| `--barcode_map_csv`             | For TCGA dataset, CSV file mapping uuids to sample IDs and cancer types. |
+| `--merged_counts`               | Path to precomputed gene expression matrix (optional, used in `rsim` mode). |
+
