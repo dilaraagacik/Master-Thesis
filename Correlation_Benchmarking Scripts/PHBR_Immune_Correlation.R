@@ -157,6 +157,21 @@ cor_labels <- cor_combined %>%
   mutate(x = -Inf, y = Inf) %>%   # force top-left placement
   select(PHBR_type, label, x, y)
 
+# Create merged PHBR dataframe for plotting
+merged_phbr_df <- plot_data %>%
+  filter(cell_type == "Immune_Score") %>%  # only Immune_Score
+  pivot_longer(
+    cols = c(phbr_mhc1, phbr_mhc2),
+    names_to = "PHBR_type",
+    values_to = "PHBR"
+  ) %>%
+  mutate(
+    PHBR_type = recode(PHBR_type, "phbr_mhc1" = "MHC-I", "phbr_mhc2" = "MHC-II"),
+    immune_score = score
+  ) %>%
+  select(sample_id, cancer_type, PHBR_type, PHBR, immune_score)
+
+
 # Prepare plot data
 plot_df <- merged_phbr_df %>%
   filter(cancer_type == "CHOL")  # only CHOL
